@@ -1,20 +1,14 @@
+from db.db import get_db
+from fastapi import Depends , HTTPException , status
+from auth.auth import oauth2_scheme , verify_token
 from datetime import datetime, date ,time
 from decimal import Decimal
 from uuid import UUID
+from sqlalchemy.orm import Session
+from models.models import RevokedTokens
+from models.models import User
 
 def model_to_dict(model_instance, exclude=None, relationship_depth=1, exclude_relationships=None):
-    """
-    Convert SQLAlchemy model instance to dictionary with smart defaults.
-    
-    Args:
-        model_instance: SQLAlchemy model instance
-        exclude: Fields to exclude (e.g., passwords)
-        relationship_depth: 0 = no relationships, 1 = first level, 2 = nested
-        exclude_relationships: Specific relationships to exclude
-    
-    Returns:
-        dict: Clean dictionary representation
-    """
     if model_instance is None:
         return None
     
@@ -25,7 +19,6 @@ def model_to_dict(model_instance, exclude=None, relationship_depth=1, exclude_re
     
     result = {}
     
-    # Get column values
     for column in model_instance.__table__.columns:
         col_name = column.name
         if col_name in exclude:
@@ -33,7 +26,6 @@ def model_to_dict(model_instance, exclude=None, relationship_depth=1, exclude_re
             
         value = getattr(model_instance, col_name)
         
-        # Handle common serialization issues
         if value is None:
             result[col_name] = None
         elif isinstance(value, datetime):
@@ -49,7 +41,6 @@ def model_to_dict(model_instance, exclude=None, relationship_depth=1, exclude_re
         else:
             result[col_name] = value
     
-    # Handle relationships
     if relationship_depth > 0:
         for rel_name, relationship in model_instance.__mapper__.relationships.items():
             if rel_name in exclude_relationships:
@@ -78,3 +69,30 @@ def model_to_dict(model_instance, exclude=None, relationship_depth=1, exclude_re
                 )
     
     return result
+
+def is_token_revoked(jti : int , db:Session):
+    revoked_token = db.query(RevokedTokens).filter(RevokedTokens.jti == jti , RevokedTokens.expires_at > datetime.utcnow()).first()
+    return revoked_token is not None
+
+def revoke_token(jti: str, token_type: str, expires_at: datetime, user_id: int = None, db: Session = None):
+    revoked_token = RevokedTokens(
+        jti=jti,
+        token_type=token_type,
+        expires_at=expires_at,
+        user_id=user_id
+    )
+    db.add(revoked_token)
+    db.commit()
+
+
+
+def get_current_user( token : str = Depends(oauth2_scheme) ,
+        db : Session = Depends(get_db)):
+    payload = verify_token(token)
+    user_email = payload.get("email")
+    user = db.query(User).filter(User.email == user_email).first()
+    if not user :
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND , detail="no user found with this information"
+        )
+    return user

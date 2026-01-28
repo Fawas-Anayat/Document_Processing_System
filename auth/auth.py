@@ -11,6 +11,8 @@ from typing import Optional
 from datetime import timedelta , datetime
 from jose import JWTError, jwt
 import secrets
+import uuid
+from auth.helper_fun import get_current_user
 
 
 
@@ -41,8 +43,6 @@ def authenticate_user(email : str , password : str ,db:Session):
     
     return user  
 
-def get_current_user():
-    pass
 
 def validate_pdf_file(file : UploadFile , user : User_schema = Depends(get_current_user)):
     if file.content_type not in  ALLOWED_FILE_TYPES:
@@ -59,6 +59,9 @@ def create_access_token(data : dict,expires_delta: Optional[timedelta] = None):
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
+
+    ui_ud = str(uuid.uuid4())
+    to_encode.update({"jti" : ui_ud})
     to_encode.update({"exp" : expire})
 
     encoded_jwt = jwt.encode(to_encode,SECRET_KEY , algorithm=ALGORITHN)
@@ -73,7 +76,7 @@ def create_refresh_token(data : dict , db:Session):
         "exp": expire,            
         "user_id": data["id"],       
         "type": "refresh",       
-        "jti": secrets.token_urlsafe(32)  
+        "jti": str(uuid.uuid4())
     }
     
     encoded_ref_token =jwt.encode(payload , SECRET_KEY , algorithm=ALGORITHN)
@@ -103,10 +106,21 @@ def save_refresh_db(data:dict, encoded_ref_token : RefreshToken , db: Session):
         user_id=data["id"],
         token=token_hash,
         expires_at=expires_at ,
-        created_at = iat
+        created_at = iat ,
+        jti = jti
     )
 
     db.add(db_token)
     db.commit()
 
+def verify_token(token: str) -> dict:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHN])
+        return payload
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) 
 
