@@ -3,7 +3,7 @@ import os
 from settings.settings import ALLOWED_FILE_TYPES
 from passlib.context import CryptContext
 from schemas.schemas import User_schema
-from models.models import User , RefreshToken
+from models.models import User , RefreshToken , BlacklistedAccessTokens
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from typing import Optional
@@ -43,17 +43,12 @@ def authenticate_user(email : str , password : str ,db:Session):
 
 def get_current_user( token : str = Depends(oauth2_scheme) ,
         db : Session = Depends(get_db)):
-    payload = verify_token(token)
+    payload = verify_token(token, db)
     user_email = payload.get("email")
     user = db.query(User).filter(User.email == user_email).first()
     if not user :
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND , detail="no user found with this information"
-        )
-    logout = db.query(RefreshToken).filter(RefreshToken.user_id == user.id).first()
-    if logout and logout.is_revoked is True:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED , detail="you are logged out . Log in again to continue"
         )
     
     return user
@@ -133,27 +128,40 @@ def save_refresh_db(data:dict, encoded_ref_token : str , db: Session):
     db.add(db_token)
     db.commit()
 
-def verify_token(token: str) -> dict:
+def verify_token(token: str, db: Session) -> dict:
+    """Verify access token and check if blacklisted."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHN])
-        
+
         jti = payload.get("jti")
         token_type = payload.get("type")
-        
+
         if token_type != "access":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+
+        # Check if token is blacklisted (user logged out)
+        blacklisted = db.query(BlacklistedAccessTokens).filter(
+            BlacklistedAccessTokens.jti == jti
+        ).first()
+
+        if blacklisted:
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token type",
-                headers={"WWW-Authenticate": "Bearer"},
+                status_code=401,
+                detail="Token has been revoked"
             )
-        
+
         return payload
-    except JWTError:
+    
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except JWTError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
 
 
 def verify_refresh_token(token: str, db: Session) -> dict:

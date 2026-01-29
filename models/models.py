@@ -45,11 +45,7 @@ class RefreshToken(Base):
     expires_at :Mapped[datetime] = mapped_column(nullable=False)
     is_revoked: Mapped[bool] = mapped_column(default=False)
 
-
-
     user = relationship("User" , back_populates="refresh_tokens")
-
-    user_id: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id"), nullable=True)
 
 class BlacklistedAccessTokens(Base):
 
@@ -62,8 +58,6 @@ class BlacklistedAccessTokens(Base):
     expires_at : Mapped[datetime] = mapped_column(nullable=False)
 
     user = relationship("User" , back_populates= "blacklisted_tokens")
-
-
 
 
     
