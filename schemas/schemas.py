@@ -14,4 +14,7 @@ class Document_schema(BaseModel):
     file_path : str
     upload_time : datetime
 
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
+
 

@@ -1,7 +1,6 @@
 from fastapi import UploadFile , HTTPException , status , Depends
 import os
 from settings.settings import ALLOWED_FILE_TYPES
-from schemas.schemas import User_schema
 from passlib.context import CryptContext
 from schemas.schemas import User_schema
 from models.models import User , RefreshToken
@@ -12,13 +11,12 @@ from datetime import timedelta , datetime
 from jose import JWTError, jwt
 import secrets
 import uuid
-from auth.helper_fun import get_current_user
-
+from db.db import get_db
 
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 15
 REFRESH_TOKEN_EXPIRE_DAYS = 7
-SECRET_KEY="mysecertkey"
+SECRET_KEY = os.getenv("SECRET_KEY", "mysecertkey")
 ALGORITHN ="HS256"
 
 
@@ -43,48 +41,70 @@ def authenticate_user(email : str , password : str ,db:Session):
     
     return user  
 
-
-def validate_pdf_file(file : UploadFile , user : User_schema = Depends(get_current_user)):
-    if file.content_type not in  ALLOWED_FILE_TYPES:
+def get_current_user( token : str = Depends(oauth2_scheme) ,
+        db : Session = Depends(get_db)):
+    payload = verify_token(token)
+    user_email = payload.get("email")
+    user = db.query(User).filter(User.email == user_email).first()
+    if not user :
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST , detail="wrong file type , can only upload pdf file"
+            status_code=status.HTTP_404_NOT_FOUND , detail="no user found with this information"
         )
+    logout = db.query(RefreshToken).filter(RefreshToken.user_id == user.id).first()
+    if logout and logout.is_revoked is True:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED , detail="you are logged out . Log in again to continue"
+        )
+    
+    return user
 
 def create_access_token(data : dict,expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()
 
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
-
     else:
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
+    jti_id = str(uuid.uuid4())
 
-    ui_ud = str(uuid.uuid4())
-    to_encode.update({"jti" : ui_ud})
-    to_encode.update({"exp" : expire})
+    iat_ts = int(datetime.utcnow().timestamp())
+    exp_ts = int(expire.timestamp())
+    to_encode.update({"jti": jti_id})
+    to_encode.update({
+        "iat": iat_ts,
+        "exp": exp_ts,
+        "user_id": data["id"],
+        "email": data["email"],
+        "name": data.get("name"),
+        "type": "access"
+    })
 
     encoded_jwt = jwt.encode(to_encode,SECRET_KEY , algorithm=ALGORITHN)
     return encoded_jwt
 
 def create_refresh_token(data : dict , db:Session):
     now = datetime.utcnow()
-    expire= datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+    expire = now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+
+    iat_ts = int(now.timestamp())
+    exp_ts = int(expire.timestamp())
+
     payload = {
-        "sub": data["name"],          
-        "iat": now,               
-        "exp": expire,            
-        "user_id": data["id"],       
-        "type": "refresh",       
+        "sub": data["name"],
+        "iat": iat_ts,
+        "exp": exp_ts,
+        "user_id": data["id"],
+        "type": "refresh",
         "jti": str(uuid.uuid4())
     }
-    
-    encoded_ref_token =jwt.encode(payload , SECRET_KEY , algorithm=ALGORITHN)
-    save_refresh_db(data,encoded_ref_token,db)
+
+    encoded_ref_token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHN)
+    save_refresh_db(data, encoded_ref_token, db)
 
     return encoded_ref_token
 
-def create_tokens(user: User , db:Session) -> dict:
+def create_tokens(user: dict , db:Session) -> dict:
 
     access_token = create_access_token(user)
     refresh_token = create_refresh_token(user,db)
@@ -95,7 +115,7 @@ def create_tokens(user: User , db:Session) -> dict:
         "token_type": "bearer"
     }
 
-def save_refresh_db(data:dict, encoded_ref_token : RefreshToken , db: Session):
+def save_refresh_db(data:dict, encoded_ref_token : str , db: Session):
     payload = jwt.decode(encoded_ref_token, SECRET_KEY, algorithms=[ALGORITHN])
     jti = payload.get("jti")
     iat = payload.get("iat")
@@ -106,7 +126,7 @@ def save_refresh_db(data:dict, encoded_ref_token : RefreshToken , db: Session):
         user_id=data["id"],
         token=token_hash,
         expires_at=expires_at ,
-        created_at = iat ,
+        created_at = datetime.fromtimestamp(iat) ,
         jti = jti
     )
 
@@ -116,11 +136,111 @@ def save_refresh_db(data:dict, encoded_ref_token : RefreshToken , db: Session):
 def verify_token(token: str) -> dict:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHN])
+        
+        jti = payload.get("jti")
+        token_type = payload.get("type")
+        
+        if token_type != "access":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
         return payload
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
-        ) 
+        )
+
+
+def verify_refresh_token(token: str, db: Session) -> dict:
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHN])
+        
+        token_type = payload.get("type")
+        if token_type != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type. Expected refresh token",
+            )
+        
+        jti = payload.get("jti")
+        user_id = payload.get("user_id")
+        
+        if not jti or not user_id:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token structure",
+            )
+        
+        refresh_token_db = db.query(RefreshToken).filter(
+            RefreshToken.jti == jti,
+            RefreshToken.user_id == user_id
+        ).first()
+        
+        if not refresh_token_db:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token not found",
+            )
+        
+        if refresh_token_db.is_revoked:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token has been revoked. Please log in again",
+            )
+        
+        if datetime.utcnow() > refresh_token_db.expires_at:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token has expired. Please log in again",
+            )
+        
+        return payload
+        
+    except JWTError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+        )
+
+
+def refresh_access_token(refresh_token: str, db: Session) -> dict:
+
+    payload = verify_refresh_token(refresh_token, db)
+    
+    user_id = payload.get("user_id")
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found",
+        )
+    
+    user_data = {
+        "id": user.id,
+        "email": user.email,
+        "name": user.name
+    }
+
+    ref_old_token = db.query(RefreshToken).filter(RefreshToken.user_id == user_data['id']).first()
+    if ref_old_token:
+        ref_old_token.is_revoked = True
+        db.add(ref_old_token)
+        db.commit()
+
+    new_refresh_token = create_refresh_token(user_data, db)
+    new_access_token = create_access_token(user_data)
+    
+    return {
+        "access_token": new_access_token,
+        "refresh_token": new_refresh_token,
+        "token_type": "bearer",
+        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60
+    }
 

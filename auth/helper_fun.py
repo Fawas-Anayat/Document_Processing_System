@@ -1,11 +1,9 @@
 from db.db import get_db
 from fastapi import Depends , HTTPException , status
-from auth.auth import oauth2_scheme , verify_token
 from datetime import datetime, date ,time
 from decimal import Decimal
 from uuid import UUID
 from sqlalchemy.orm import Session
-from models.models import RevokedTokens
 from models.models import User
 
 def model_to_dict(model_instance, exclude=None, relationship_depth=1, exclude_relationships=None):
@@ -71,7 +69,7 @@ def model_to_dict(model_instance, exclude=None, relationship_depth=1, exclude_re
     return result
 
 def is_token_revoked(jti : int , db:Session):
-    revoked_token = db.query(RevokedTokens).filter(RevokedTokens.jti == jti , RevokedTokens.expires_at > datetime.utcnow()).first()
+    revoked_token = db.query(User).filter(User == jti , RevokedTokens.expires_at > datetime.utcnow()).first()
     return revoked_token is not None
 
 def revoke_token(jti: str, token_type: str, expires_at: datetime, user_id: int = None, db: Session = None):
@@ -83,16 +81,3 @@ def revoke_token(jti: str, token_type: str, expires_at: datetime, user_id: int =
     )
     db.add(revoked_token)
     db.commit()
-
-
-
-def get_current_user( token : str = Depends(oauth2_scheme) ,
-        db : Session = Depends(get_db)):
-    payload = verify_token(token)
-    user_email = payload.get("email")
-    user = db.query(User).filter(User.email == user_email).first()
-    if not user :
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND , detail="no user found with this information"
-        )
-    return user

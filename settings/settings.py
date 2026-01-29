@@ -1,1 +1,1 @@
-ALLOWED_FILE_TYPES = ["pdf"]
+ALLOWED_FILE_TYPES = ["application/pdf"]

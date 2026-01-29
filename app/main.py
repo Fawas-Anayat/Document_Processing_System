@@ -2,15 +2,18 @@ from fastapi import FastAPI , Depends , UploadFile , File , HTTPException , stat
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from db.db import get_db
-from models.models import User , Document , BlacklistedAccessTokens , RefreshToken , RevokedTokens
+from models.models import User , Document , BlacklistedAccessTokens , RefreshToken 
 from db.db import Base , engine
-from schemas.schemas import User_schema
-from auth.auth import validate_pdf_file , hash_password , authenticate_user , create_tokens , oauth2_scheme , ALGORITHN , SECRET_KEY
-from auth.helper_fun import get_current_user
+from schemas.schemas import User_schema , RefreshTokenRequest
+from auth.auth import hash_password , authenticate_user , create_tokens , oauth2_scheme , ALGORITHN , SECRET_KEY , get_current_user , verify_refresh_token , refresh_access_token
 from fastapi.security import OAuth2PasswordRequestForm
 from auth.helper_fun import model_to_dict
 from jose import jwt
 from datetime import datetime , timedelta
+import os
+
+
+
 
 
 app = FastAPI()
@@ -32,17 +35,33 @@ def signup_user(user : User_schema , db : Session = Depends(get_db)):
 
 @app.post("/login")
 def login_user(form_data : OAuth2PasswordRequestForm = Depends(), db:Session = Depends(get_db)):
-    user =model_to_dict(authenticate_user(email=form_data.username , password=form_data.password,db=db))
-
-    if user is False:
+    auth_user = authenticate_user(email=form_data.username , password=form_data.password,db=db)
+    
+    if auth_user is False:
         raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="invalid username or password"
     )
+    
+    user = model_to_dict(auth_user)
 
     tokens = create_tokens(user,db)
 
     return tokens
+
+@app.post("/refresh")
+def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
+    try:
+        new_tokens = refresh_access_token(request.refresh_token, db)
+        return new_tokens
+    
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Token refresh failed: {str(e)}"
+        )
 
 @app.post("/logout")
 def logout(current_user = Depends(get_current_user) , db: Session = Depends(get_db) , token = Depends(oauth2_scheme)):
@@ -53,19 +72,12 @@ def logout(current_user = Depends(get_current_user) , db: Session = Depends(get_
         exp = payload.get("exp")
         user_id = payload.get("user_id")
         
-        refresh_token = db.query(RefreshToken).filter(RefreshToken.user_id == user_id).first()
+        refresh_tokens = db.query(RefreshToken).filter(RefreshToken.user_id == user_id).all()
 
-        if refresh_token:
-            refresh_token.is_revoked = True
-            
-            new_revoke_token = RevokedTokens(
-                user_id = user_id ,
-                jti = refresh_token.jti,
-                token_type = 1 ,
-                revoked_at = datetime.utcnow() ,
-                expires_at = refresh_token.expires_at
-            )
-            db.commit()
+        if refresh_tokens:
+            for ref_token in refresh_tokens :
+                ref_token.is_revoked = True
+
 
         if jti and exp:
             expires_at = datetime.fromtimestamp(exp)
@@ -77,6 +89,7 @@ def logout(current_user = Depends(get_current_user) , db: Session = Depends(get_
             if not existing:
                 blacklisted_access_token = BlacklistedAccessTokens(
                     jti = jti ,
+                    user_id=current_user.id ,
                     blacklisted_at = datetime.utcnow() ,
                     expires_at = expires_at
                 )
@@ -92,15 +105,54 @@ def logout(current_user = Depends(get_current_user) , db: Session = Depends(get_
             detail=f"Logout failed: {str(e)}"
         )
 
+@app.post("/uploadFile")
+async def upload_file(file : UploadFile = File(...) , current_user = Depends(get_current_user) , db : Session = Depends(get_db)):
+    try:
 
-
-
+        if file.content_type not in ["application/pdf"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Only PDF files are allowed"
+            )
         
-    
-
-
-
-
-@app.post("uploadFile")
-def upload_file(file : UploadFile = File(...)):
-   pass
+        file_content = await file.read()
+        file_size = len(file_content)
+        
+        upload_dir = "uploads"
+        if not os.path.exists(upload_dir):
+            os.makedirs(upload_dir)
+        
+        file_name = f"{current_user.id}_{datetime.utcnow().timestamp()}_{file.filename}"
+        file_path = os.path.join(upload_dir, file_name)
+        
+        with open(file_path, "wb") as f:
+            f.write(file_content)
+        
+        new_document = Document(
+            user_id=current_user.id,
+            file_size=str(file_size),
+            file_path=file_path,
+            upload_time=datetime.utcnow()
+        )
+        
+        db.add(new_document)
+        db.commit()
+        db.refresh(new_document)
+        
+        return {
+            "message": "File uploaded successfully",
+            "file_id": new_document.file_id,
+            "file_name": file.filename,
+            "file_size": file_size,
+            "file_path": file_path,
+            "upload_time": new_document.upload_time
+        }
+        
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"File upload failed: {str(e)}"
+        )
