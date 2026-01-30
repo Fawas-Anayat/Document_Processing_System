@@ -129,7 +129,6 @@ def save_refresh_db(data:dict, encoded_ref_token : str , db: Session):
     db.commit()
 
 def verify_token(token: str, db: Session) -> dict:
-    """Verify access token and check if blacklisted."""
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHN])
 
@@ -139,7 +138,6 @@ def verify_token(token: str, db: Session) -> dict:
         if token_type != "access":
             raise HTTPException(status_code=401, detail="Invalid token type")
 
-        # Check if token is blacklisted (user logged out)
         blacklisted = db.query(BlacklistedAccessTokens).filter(
             BlacklistedAccessTokens.jti == jti
         ).first()
@@ -153,7 +151,6 @@ def verify_token(token: str, db: Session) -> dict:
         return payload
     
     except HTTPException:
-        # Re-raise HTTP exceptions as-is
         raise
     except JWTError as e:
         raise HTTPException(

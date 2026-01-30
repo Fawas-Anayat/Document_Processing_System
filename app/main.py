@@ -61,16 +61,6 @@ def refresh_token(request: RefreshTokenRequest, db: Session = Depends(get_db)):
 
 @app.post("/logout")
 def logout(request : LogoutRequest, db: Session = Depends(get_db) , token = Depends(oauth2_scheme)):
-    """
-    Logout endpoint: Revokes access token and refresh token.
-    
-    NOTE: This endpoint accepts EXPIRED access tokens (unlike other protected endpoints).
-    This allows users to logout even if their access token has expired.
-    
-    Required:
-    - Authorization header with access token (Bearer <token>) - can be expired
-    - Body: {"refresh_token": "<refresh_token>"}
-    """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHN], options={"verify_exp": False})
         
@@ -121,11 +111,8 @@ def logout(request : LogoutRequest, db: Session = Depends(get_db) , token = Depe
                     refresh_token_db.is_revoked = True
                     db.add(refresh_token_db)
         except HTTPException as e:
-            # If refresh token is invalid/expired, still blacklist access token
-            # This is OK - user can logout with just the access token
             print(f"Info: Refresh token not revoked during logout: {e.detail}")
 
-        # Step 3: Commit all changes
         db.commit()
         return {"message": "Logged out successfully"}
 
@@ -144,55 +131,7 @@ def logout(request : LogoutRequest, db: Session = Depends(get_db) , token = Depe
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
             detail=f"Logout failed: {str(e)}"
         )
-
-@app.get("/debug/token")
-def debug_token(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    """
-    Debug endpoint to verify token validity (including expired tokens).
-    Pass your token in Authorization header to see its contents and validity status.
-    """
-    try:
-        # Decode WITHOUT validating exp so we can see expired tokens too
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHN], options={"verify_exp": False})
-        
-        jti = payload.get("jti")
-        token_type = payload.get("type")
-        exp = payload.get("exp")
-        
-        # Check if blacklisted
-        blacklisted = db.query(BlacklistedAccessTokens).filter(
-            BlacklistedAccessTokens.jti == jti
-        ).first()
-        
-        is_expired = datetime.utcnow().timestamp() > exp if exp else None
-        
-        return {
-            "valid": True,
-            "type": token_type,
-            "jti": jti,
-            "expires_at": datetime.fromtimestamp(exp).isoformat() if exp else None,
-            "is_expired": is_expired,
-            "is_blacklisted": blacklisted is not None,
-            "payload": payload,
-            "current_time": datetime.utcnow().isoformat(),
-            "message": "Token is expired. Use /refresh endpoint with refresh_token to get a new access token." if is_expired else "Token is still valid"
-        }
-    except JWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid token: {str(e)}"
-        )
     
-    except JWTError as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid token: {str(e)}"
-        )
-    
-
-
-
-
 @app.post("/uploadFile")
 async def upload_file(file : UploadFile = File(...) , current_user = Depends(get_current_user) , db : Session = Depends(get_db)):
     try:
