@@ -11,6 +11,7 @@ from auth.helper_fun import model_to_dict
 from jose import jwt , JWTError
 from datetime import datetime , timedelta
 import os
+from services.document_processor import document_processor
 
 app = FastAPI()
 
@@ -135,11 +136,11 @@ def logout(request : LogoutRequest, db: Session = Depends(get_db) , token = Depe
 @app.post("/uploadFile")
 async def upload_file(file : UploadFile = File(...) , current_user = Depends(get_current_user) , db : Session = Depends(get_db)):
     try:
-
-        if file.content_type not in ["application/pdf"]:
+        allowed_file_types = ['application/pdf' , 'docx' , 'txt']
+        if file.content_type not in allowed_file_types:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Only PDF files are allowed"
+                detail=f"invalid file type , only allowed {allowed_file_types}"
             )
         
         file_content = await file.read()

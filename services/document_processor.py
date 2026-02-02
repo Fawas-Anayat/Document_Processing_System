@@ -44,7 +44,7 @@ class DocumentProcessor:
         
         return documents
     
-    def process_and_store_document(
+    def process_and_store_document_chromadb(
         self,
         file_path: str,
         file_type: str,
