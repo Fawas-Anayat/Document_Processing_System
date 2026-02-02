@@ -1,2 +1,56 @@
-/uploads
-.env
+# Python / Bytecode
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+.eggs/
+*.egg
+
+# Virtual environments
+env/
+venv/
+env2/             
+.venv/
+.env/
+.env.*
+*.env
+
+# IDE / Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Testing & coverage
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+nosetests.xml
+
+# Logs & temp files
+*.log
+*.tmp
+*.bak
+
+# Database 
+*.db
+*.sqlite3
+
+# Uploads / generated files )
+uploads/
+*.pdf
+*.docx
+*.txt   
+
+# Chroma / vector store persistence 
+chroma_db/
+vectorstore/
+
+# macOS junk
+.DS_Store
