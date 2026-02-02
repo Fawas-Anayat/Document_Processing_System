@@ -14,7 +14,7 @@ import uuid
 from db.db import get_db
 
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 15
+ACCESS_TOKEN_EXPIRE_MINUTES = 300000
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 SECRET_KEY = os.getenv("SECRET_KEY", "mysecertkey")
 ALGORITHN ="HS256"
@@ -153,8 +153,9 @@ def verify_token(token: str, db: Session) -> dict:
     except HTTPException:
         raise
     except JWTError as e:
+        print(f"JWT Error: {str(e)}")  
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
+            status_code=status.HTTP_401_UNAUTHORIZED, 
             detail="Could not validate credentials",
             headers={"WWW-Authenticate": "Bearer"},
         )

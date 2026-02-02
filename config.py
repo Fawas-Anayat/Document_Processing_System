@@ -3,7 +3,8 @@ from pydantic_settings import BaseSettings
 from typing import Optional
 
 class Settings(BaseSettings):    
-    
+
+    secret_key : str
     UPLOAD_DIR: str = "./uploads"
     MAX_FILE_SIZE: int = 10 * 1024 * 1024  
     ALLOWED_EXTENSIONS: list = [".pdf", ".docx", ".txt"]

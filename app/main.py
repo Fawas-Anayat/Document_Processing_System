@@ -11,7 +11,7 @@ from auth.helper_fun import model_to_dict
 from jose import jwt , JWTError
 from datetime import datetime , timedelta
 import os
-from services.document_processor import document_processor
+from services.document_processor import document_processor 
 
 app = FastAPI()
 
@@ -22,7 +22,7 @@ Base.metadata.create_all(bind=engine)
 def signup_user(user : User_schema , db : Session = Depends(get_db)):
     hashed_password = hash_password(user.password)
     user_db = User(name = user.name , email = user.email , hashed_password = hashed_password)
-    db .add(user_db)
+    db.add(user_db)
     db.commit()
     db.refresh(user_db)
 
@@ -141,8 +141,8 @@ async def upload_file(file : UploadFile = File(...) , current_user = Depends(get
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"invalid file type , only allowed {allowed_file_types}"
-            )
-        
+            )        
+
         file_content = await file.read()
         file_size = len(file_content)
         
@@ -167,14 +167,20 @@ async def upload_file(file : UploadFile = File(...) , current_user = Depends(get
         db.commit()
         db.refresh(new_document)
         
-        return {
-            "message": "File uploaded successfully",
-            "file_id": new_document.file_id,
+        loaded_doc = document_processor.process_and_store_document_chromadb(file_path=file_path , file_type=file.content_type , user_id=current_user.id ,document_id=new_document.file_id ,db=db)
+
+
+        return [
+            loaded_doc,
+            {
+            "message": "File uploaded and processed successfully",
+            "status" : "file saved in the db and embeddings in the vector db" ,
             "file_name": file.filename,
             "file_size": file_size,
             "file_path": file_path,
             "upload_time": new_document.upload_time
-        }
+            }
+        ]
         
     except HTTPException as e:
         raise e
@@ -184,3 +190,11 @@ async def upload_file(file : UploadFile = File(...) , current_user = Depends(get
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"File upload failed: {str(e)}"
         )
+    
+    
+
+@app.post("/processDocuments")
+def process_documents(file_id : int , user_id : int , db : Session = Depends(get_db)):
+    db.query(Document).filter()
+
+
