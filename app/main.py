@@ -12,8 +12,25 @@ from datetime import datetime , timedelta
 import os
 from services.document_processor import document_processor 
 from auth.helper_fun import chat_groq_model
+from fastapi.middleware.cors import CORSMiddleware
+
 
 app = FastAPI()
+
+"""
+notes:
+origin is the tuple of (scheme + host + port)
+
+"""
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],    # with the origin we can't allow all the origins because the browsers will reject this, we must specifiy the exact origin  
+    allow_credentials=True,    # this means that can we bring in the cookies/credentials along with the requests           
+    allow_methods=["*"],                  
+    allow_headers=["*"],         # what can we bring in like the content-type or the authorisation etc 
+)
 
 Base.metadata.create_all(bind=engine)
 
