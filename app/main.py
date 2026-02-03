@@ -4,14 +4,14 @@ from sqlalchemy.orm import Session
 from db.db import get_db
 from models.models import User , Document , BlacklistedAccessTokens , RefreshToken 
 from db.db import Base , engine
-from schemas.schemas import User_schema , RefreshTokenRequest , LogoutRequest
+from schemas.schemas import User_schema , RefreshTokenRequest , LogoutRequest , ChatRequest
 from auth.auth import hash_password , authenticate_user , create_tokens , oauth2_scheme , ALGORITHN , SECRET_KEY , get_current_user , verify_refresh_token , refresh_access_token
 from fastapi.security import OAuth2PasswordRequestForm
-from auth.helper_fun import model_to_dict
 from jose import jwt , JWTError
 from datetime import datetime , timedelta
 import os
 from services.document_processor import document_processor 
+from auth.helper_fun import chat_groq_model
 
 app = FastAPI()
 
@@ -40,7 +40,12 @@ def login_user(form_data : OAuth2PasswordRequestForm = Depends(), db:Session = D
         detail="invalid username or password"
     )
     
-    user = model_to_dict(auth_user)
+    user = {
+        "id": auth_user.id,
+        "email": auth_user.email,
+        "name": auth_user.name
+    }
+
 
     tokens = create_tokens(user,db)
 
@@ -193,8 +198,95 @@ async def upload_file(file : UploadFile = File(...) , current_user = Depends(get
     
     
 
-@app.post("/processDocuments")
-def process_documents(file_id : int , user_id : int , db : Session = Depends(get_db)):
-    db.query(Document).filter()
+@app.post("/ShowDocuments")
+def process_documents(current_user = Depends(get_current_user) , db : Session = Depends(get_db)):
+    user_documents = db.query(Document).filter(
+        Document.user_id == current_user.id,
+        Document.processing_status == "completed"
+    ).all()
+
+    results = []
+
+    for doc in user_documents:
+        collection_name = doc.collection_name
+        vector_store = document_processor.get_vector_store(collection_name)
+        all_chunks = vector_store.get()
+        results.append({
+            "file_id": doc.file_id,
+            "collection_name": collection_name,
+            "chunk_count": len(all_chunks['documents']),
+            "chunks": all_chunks['documents'], 
+            "metadata": all_chunks['metadatas']  
+        })
+        return {"documents": results}
+    
+@app.post("/chat")
+def chat(request : ChatRequest ,current_user = Depends(get_current_user) , db : Session = Depends(get_db)):
+    document = db.query(Document).filter(
+        Document.file_id == request.document_id,
+        Document.user_id == current_user.id,
+        Document.processing_status == "completed"
+    ).first()
+
+    if not document:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found or not ready"
+        )
+    
+    vector_store = document_processor.get_vector_store(document.collection_name)
+
+    relevant_chunks = vector_store.similarity_search(
+        query=request.query,  
+        k=5  
+    )
+
+    context = "\n\n".join([chunk.page_content for chunk in relevant_chunks])
+
+    prompt = f"""
+    You are a helpful assistant. Answer the question based on the context below.
+    
+    Context from document '{document.file_id}':
+    {context}
+    
+    Question: {request.query}
+    
+    Answer: Provide a helpful answer based only on the context above. 
+    If the answer is not in the context, say "I cannot find this information in the document."
+    """
+
+    llm_response = chat_groq_model(prompt , context)
+
+    return {
+        "query": request.query,
+        "answer": llm_response,
+        "source_document": document.file_id,
+        "relevant_chunks_count": len(relevant_chunks),
+        "chunks_used": [
+            {
+                "content": chunk.page_content[:200] + "...",  # Preview
+                "chunk_index": chunk.metadata.get('chunk_index'),
+                "relevance_score": chunk.metadata.get('score', 'N/A')
+            }
+            for chunk in relevant_chunks
+        ]
+    }
+
+
+
+
+    # all_documents = db.query(Document).filter(Document.user_id == current_user.id , Document.processing_status == "completed").all()
+    # print(f"you have following documents \n {all_documents}")
+    # doc_id = int(input("enter the id of the doc you want to chat with"))
+
+    # doc =db.query(Document).filter(Document.file_id == doc_id).first()
+    
+    # vector_store = document_processor.get_vector_store(doc.collection_name)
+    # all_chunks = vector_store.get() 
+
+
+
+    
+
 
 

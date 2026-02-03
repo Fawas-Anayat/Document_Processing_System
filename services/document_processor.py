@@ -120,15 +120,12 @@ class DocumentProcessor:
             embedding_function=self.embeddings,
             persist_directory=settings.CHROMA_DB_DIR
         )
-    
-    def delete_collection(self, collection_name: str) -> bool:
-        try:
-            import chromadb
-            client = chromadb.PersistentClient(path=settings.CHROMA_DB_DIR)
-            client.delete_collection(name=collection_name)
-            return True
-        except Exception as e:
-            return False
-
 
 document_processor = DocumentProcessor()
+
+
+
+# Notes
+"""There are three methods using which we can connect/create the vector store ,, Chroma.from_documents, Chroma.from_texts and Chroma object that connects to the existing db connection
+vector_Store.similarity_Score for counting the similarity score or searching the documents
+we can also use different filter for searching the docuemnts in the existing db"""
