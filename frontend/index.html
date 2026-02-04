@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document Processing System - API Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,600&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ["Space Grotesk", "ui-sans-serif", "system-ui"],
+              serif: ["Newsreader", "ui-serif", "Georgia"],
+            },
+            colors: {
+              clay: {
+                50: "#fff8f2",
+                100: "#fcefe4",
+                200: "#f8dcc8",
+                300: "#f0c1a2",
+                400: "#e59a72",
+                500: "#d46a4c",
+                600: "#b65237",
+                700: "#8f3d2b",
+                800: "#6f2e22",
+                900: "#532219",
+              },
+            },
+            boxShadow: {
+              soft: "0 20px 60px rgba(34, 26, 15, 0.12)",
+            },
+          },
+        },
+      };
+    </script>
+  </head>
+  <body class="min-h-screen bg-gradient-to-b from-[#f7f3ef] via-[#f3ede7] to-[#efe2d6] text-[#1c1b1a]">
+    <main class="mx-auto flex max-w-6xl flex-col gap-8 px-6 pb-20 pt-10">
+      <header class="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <div class="space-y-4">
+          <p class="text-xs uppercase tracking-[0.28em] text-neutral-500">
+            Document Processing System
+          </p>
+          <h1 class="font-sans text-3xl font-semibold tracking-tight md:text-5xl">
+            Backend API Console
+          </h1>
+          <p class="max-w-xl text-base text-neutral-600 md:text-lg">
+            Authenticate, upload documents, inspect chunks, and chat against your
+            embeddings. Each panel maps 1:1 to a backend endpoint.
+          </p>
+        </div>
+        <div class="rounded-3xl border border-[#e1d7cd] bg-white p-6 shadow-soft">
+          <label for="apiBase" class="text-sm font-semibold text-neutral-700">
+            API Base URL
+          </label>
+          <div class="mt-3 flex flex-col gap-3 md:flex-row">
+            <input
+              id="apiBase"
+              type="url"
+              value="http://127.0.0.1:8000"
+              spellcheck="false"
+              class="w-full rounded-2xl border border-[#e1d7cd] bg-[#fbfaf8] px-4 py-2 text-sm font-medium text-neutral-700 focus:outline-none focus:ring-2 focus:ring-clay-300"
+            />
+            <button
+              id="saveBase"
+              class="rounded-full bg-clay-500 px-5 py-2 text-sm font-semibold text-white transition hover:bg-clay-600"
+            >
+              Save
+            </button>
+          </div>
+          <p class="mt-3 text-sm text-neutral-500">
+            Default assumes FastAPI on port 8000. Update if your backend differs.
+          </p>
+        </div>
+      </header>
+
+      <section class="grid gap-6 lg:grid-cols-2">
+        <article class="rounded-3xl border border-[#e1d7cd] bg-white p-6 shadow-soft">
+          <div class="space-y-2">
+            <h2 class="font-sans text-xl font-semibold">Signup</h2>
+            <p class="text-xs uppercase tracking-[0.2em] text-neutral-500">
+              POST /Signup
+            </p>
+          </div>
+          <form id="signupForm" class="mt-4 space-y-3">
+            <input
+              type="text"
+              id="signupName"
+              placeholder="Name"
+              required
+              class="w-full rounded-2xl border border-[#e1d7cd] bg-[#fbfaf8] px-4 py-2 text-sm"
+            />
+            <input
+              type="email"
+              id="signupEmail"
+              placeholder="Email"
+              required
+              class="w-full rounded-2xl border border-[#e1d7cd] bg-[#fbfaf8] px-4 py-2 text-sm"
+            />
+            <input
+              type="password"
+              id="signupPassword"
+              placeholder="Password"
+              required
+              class="w-full rounded-2xl border border-[#e1d7cd] bg-[#fbfaf8] px-4 py-2 text-sm"
+            />
+            <button
+              class="w-full rounded-full bg-clay-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-clay-600"
+              type="submit"
+            >
+              Create Account
+            </button>
+          </form>
+          <pre
+            id="signupOutput"
+            class="mt-4 min-h-[52px] rounded-2xl bg-[#111110] p-4 text-xs text-[#e7e0d9]"
+          ></pre>
+        </article>
+
+        <article class="rounded-3xl border border-[#e1d7cd] bg-white p-6 shadow-soft">
+          <div class="space-y-2">
+            <h2 class="font-sans text-xl font-semibold">Login</h2>
+            <p class="text-xs uppercase tracking-[0.2em] text-neutral-500">
+              POST /login
+            </p>
+          </div>
+          <form id="loginForm" class="mt-4 space-y-3">
+            <input
+              type="email"
+              id="loginEmail"
+              placeholder="Email"
+              required
+              class="w-full rounded-2xl border border-[#e1d7cd] bg-[#fbfaf8] px-4 py-2 text-sm"
+            />
+            <input
+              type="password"
+              id="loginPassword"
+              placeholder="Password"
+              required
+              class="w-full rounded-2xl border border-[#e1d7cd] bg-[#fbfaf8] px-4 py-2 text-sm"
+            />
+            <button
+              class="w-full rounded-full bg-clay-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-clay-600"
+              type="submit"
+            >
+              Get Tokens
+            </button>
+          </form>
+          <div class="mt-4 grid gap-3">
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">
+                Access Token
+              </p>
+              <textarea
+                id="accessToken"
+                rows="3"
+                spellcheck="false"
+                class="mt-2 w-full rounded-2xl border border-[#e1d7cd] bg-[#fbfaf8] px-3 py-2 text-xs"
+              ></textarea>
+            </div>
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-neutral-500">
+                Refresh Token
+              </p>
+              <textarea
+                id="refreshToken"
+                rows="3"
+                spellcheck="false"
+                class="mt-2 w-full rounded-2xl border border-[#e1d7cd] bg-[#fbfaf8] px-3 py-2 text-xs"
+              ></textarea>
+            </div>
+          </div>
+          <pre
+            id="loginOutput"
+            class="mt-4 min-h-[52px] rounded-2xl bg-[#111110] p-4 text-xs text-[#e7e0d9]"
+          ></pre>
+        </article>
+
+        <article class="rounded-3xl border border-[#e1d7cd] bg-white p-6 shadow-soft">
+          <div class="space-y-2">
+            <h2 class="font-sans text-xl font-semibold">Refresh Token</h2>
+            <p class="text-xs uppercase tracking-[0.2em] text-neutral-500">
+              POST /refresh
+            </p>
+          </div>
+          <button
+            id="refreshBtn"
+            class="mt-4 rounded-full border border-clay-500 px-4 py-2 text-sm font-semibold text-clay-600 transition hover:bg-clay-50"
+          >
+            Refresh Access
+          </button>
+          <pre
+            id="refreshOutput"
+            class="mt-4 min-h-[52px] rounded-2xl bg-[#111110] p-4 text-xs text-[#e7e0d9]"
+          ></pre>
+        </article>
+
+        <article class="rounded-3xl border border-[#e1d7cd] bg-white p-6 shadow-soft">
+          <div class="space-y-2">
+            <h2 class="font-sans text-xl font-semibold">Logout</h2>
+            <p class="text-xs uppercase tracking-[0.2em] text-neutral-500">
+              POST /logout
+            </p>
+          </div>
+          <button
+            id="logoutBtn"
+            class="mt-4 rounded-full border border-clay-500 px-4 py-2 text-sm font-semibold text-clay-600 transition hover:bg-clay-50"
+          >
+            Logout
+          </button>
+          <pre
+            id="logoutOutput"
+            class="mt-4 min-h-[52px] rounded-2xl bg-[#111110] p-4 text-xs text-[#e7e0d9]"
+          ></pre>
+        </article>
+      </section>
+
+      <section class="grid gap-6 lg:grid-cols-2">
+        <article class="rounded-3xl border border-[#e1d7cd] bg-white p-6 shadow-soft">
+          <div class="space-y-2">
+            <h2 class="font-sans text-xl font-semibold">Upload File</h2>
+            <p class="text-xs uppercase tracking-[0.2em] text-neutral-500">
+              POST /uploadFile
+            </p>
+          </div>
+          <form id="uploadForm" class="mt-4 space-y-3">
+            <input
+              type="file"
+              id="fileInput"
+              required
+              class="w-full rounded-2xl border border-[#e1d7cd] bg-[#fbfaf8] px-4 py-2 text-sm"
+            />
+            <button
+              class="w-full rounded-full bg-clay-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-clay-600"
+              type="submit"
+            >
+              Upload & Process
+            </button>
+          </form>
+          <pre
+            id="uploadOutput"
+            class="mt-4 min-h-[52px] rounded-2xl bg-[#111110] p-4 text-xs text-[#e7e0d9]"
+          ></pre>
+        </article>
+
+        <article class="rounded-3xl border border-[#e1d7cd] bg-white p-6 shadow-soft">
+          <div class="space-y-2">
+            <h2 class="font-sans text-xl font-semibold">Show Documents</h2>
+            <p class="text-xs uppercase tracking-[0.2em] text-neutral-500">
+              POST /ShowDocuments
+            </p>
+          </div>
+          <button
+            id="showDocsBtn"
+            class="mt-4 rounded-full border border-clay-500 px-4 py-2 text-sm font-semibold text-clay-600 transition hover:bg-clay-50"
+          >
+            Load Documents
+          </button>
+          <div id="docsList" class="mt-4 grid gap-3"></div>
+          <pre
+            id="docsOutput"
+            class="mt-4 min-h-[52px] rounded-2xl bg-[#111110] p-4 text-xs text-[#e7e0d9]"
+          ></pre>
+        </article>
+      </section>
+
+      <section>
+        <article class="rounded-3xl border border-[#e1d7cd] bg-white p-6 shadow-soft">
+          <div class="space-y-2">
+            <h2 class="font-sans text-xl font-semibold">Chat With Document</h2>
+            <p class="text-xs uppercase tracking-[0.2em] text-neutral-500">
+              POST /chat
+            </p>
+          </div>
+          <form id="chatForm" class="mt-4 space-y-3">
+            <input
+              type="number"
+              id="chatDocId"
+              placeholder="Document ID"
+              required
+              class="w-full rounded-2xl border border-[#e1d7cd] bg-[#fbfaf8] px-4 py-2 text-sm"
+            />
+            <textarea
+              id="chatQuery"
+              rows="4"
+              placeholder="Ask a question about the document..."
+              required
+              class="w-full rounded-2xl border border-[#e1d7cd] bg-[#fbfaf8] px-4 py-2 text-sm"
+            ></textarea>
+            <button
+              class="w-full rounded-full bg-clay-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-clay-600"
+              type="submit"
+            >
+              Ask
+            </button>
+          </form>
+          <div
+            id="chatAnswer"
+            class="mt-4 min-h-[52px] rounded-2xl border-l-4 border-clay-500 bg-clay-50 px-4 py-3 text-sm text-neutral-700"
+          ></div>
+          <pre
+            id="chatOutput"
+            class="mt-4 min-h-[52px] rounded-2xl bg-[#111110] p-4 text-xs text-[#e7e0d9]"
+          ></pre>
+        </article>
+      </section>
+
+      <section class="rounded-3xl border border-[#e1d7cd] bg-white p-6 shadow-soft">
+        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <h2 class="font-sans text-xl font-semibold">Request Log</h2>
+          <button
+            id="clearLog"
+            class="rounded-full bg-[#f3ede7] px-4 py-2 text-sm font-semibold text-neutral-600"
+          >
+            Clear
+          </button>
+        </div>
+        <pre
+          id="requestLog"
+          class="mt-4 max-h-56 min-h-[52px] overflow-y-auto rounded-2xl bg-[#111110] p-4 text-xs text-[#e7e0d9]"
+        ></pre>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
