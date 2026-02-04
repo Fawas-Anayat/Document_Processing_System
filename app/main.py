@@ -37,6 +37,11 @@ Base.metadata.create_all(bind=engine)
 
 @app.post("/Signup")
 def signup_user(user : User_schema , db : Session = Depends(get_db)):
+    existing_user = db.query(User).filter(User.email == user.email).first()
+    if existing_user:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST , detail="Email already registered")
+
+
     hashed_password = hash_password(user.password)
     user_db = User(name = user.name , email = user.email , hashed_password = hashed_password)
     db.add(user_db)
@@ -300,6 +305,20 @@ def chat(request : ChatRequest ,current_user = Depends(get_current_user) , db : 
     
     # vector_store = document_processor.get_vector_store(doc.collection_name)
     # all_chunks = vector_store.get() 
+
+
+
+
+
+    """
+    Notes: (async-await)
+    - can be sequential when the order matters
+    - can be concurrent when we have the independent operations and here the event loop is involved
+    - can also be used as the backgound task where we have  "from fastapi import BackgroundTasks"
+    - use the async libraries instead of the sync like httpx instead of the requests and use AsyncSession instead of the session
+
+        
+    """
 
 
 

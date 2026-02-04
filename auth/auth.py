@@ -14,7 +14,7 @@ import uuid
 from db.db import get_db
 
 
-ACCESS_TOKEN_EXPIRE_MINUTES = 300000
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
 SECRET_KEY = os.getenv("SECRET_KEY", "mysecertkey")
 ALGORITHN ="HS256"
